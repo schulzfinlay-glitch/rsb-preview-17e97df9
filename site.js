@@ -4,7 +4,40 @@
   var $ = function (s, r) { return (r || document).querySelector(s); };
   var $$ = function (s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); };
   var reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var act = $('[data-build-act]');
+  // Reduced motion: no pin. The house shows finished and the stages read as a list.
+  if (act && reduce) { act.removeAttribute('data-sc-act'); act.classList.add('is-static'); act.style.setProperty('--sc-p', '1'); }
   if (window.ScrollCraft) window.ScrollCraft.mount(document.body);
+
+  /* the build: which stage is showing, the tick bar, jump to a stage */
+  if (act) {
+    var stages = $$('.stage', act), ticks = $$('[data-jump]', act);
+    var from = stages.map(function (li) { return parseFloat(li.getAttribute('data-from')); });
+    var cur = -1;
+    var paint = function () {
+      var p = reduce ? 1 : parseFloat(act.style.getPropertyValue('--sc-p')) || 0;
+      var i = 0; for (var k = 0; k < from.length; k++) if (p >= from[k] - 0.005) i = k;
+      if (i !== cur) {
+        cur = i;
+        stages.forEach(function (li, k) { li.classList.toggle('is-on', k === i); });
+        ticks.forEach(function (b, k) { b.classList.toggle('is-on', k === i); if (k === i) b.setAttribute('aria-current', 'step'); else b.removeAttribute('aria-current'); });
+      }
+      ticks.forEach(function (b, k) { var a = from[k], z = k + 1 < from.length ? from[k + 1] : 0.94; b.style.setProperty('--fill', Math.max(0, Math.min(1, (p - a) / (z - a))).toFixed(3)); });
+    };
+    var raf = 0;
+    addEventListener('scroll', function () { if (!raf) raf = requestAnimationFrame(function () { raf = 0; paint(); }); }, { passive: true });
+    // the engine eases --sc-p toward the scroll position, so keep painting while it settles
+    if (!reduce) setInterval(paint, 120);
+    paint();
+    ticks.forEach(function (b, k) {
+      b.addEventListener('click', function () {
+        if (reduce) return;
+        var top = act.getBoundingClientRect().top + scrollY, travel = act.offsetHeight - innerHeight;
+        var target = k === 0 ? 0.05 : (k + 1 < from.length ? (from[k] + from[k + 1]) / 2 : 1);
+        scrollTo({ top: top + travel * target, behavior: 'smooth' });
+      });
+    });
+  }
 
   /* header: underline the section you're in */
   var links = $$('.tb__nav a');
