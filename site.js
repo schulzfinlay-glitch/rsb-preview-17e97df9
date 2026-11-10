@@ -1,4 +1,4 @@
-// RSB Building: string line progress, Peg it out, the enquiry.
+// RSB Building: section links, gallery filter and lightbox, Size it up, the enquiry.
 (function () {
   'use strict';
   var $ = function (s, r) { return (r || document).querySelector(s); };
@@ -6,29 +6,43 @@
   var reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
   if (window.ScrollCraft) window.ScrollCraft.mount(document.body);
 
-  /* the string line: a yellow bead travels along it as you go down the page */
-  var you = $('[data-you]');
-  var bar = $('.bar');
-  function onScroll() {
-    var max = document.documentElement.scrollHeight - innerHeight;
-    if (you) bar.style.setProperty('--you', max > 0 ? Math.min(1, scrollY / max).toFixed(4) : 0);
-  }
-  addEventListener('scroll', onScroll, { passive: true }); addEventListener('resize', onScroll); onScroll();
-  var links = $$('.bar nav a');
-  if ('IntersectionObserver' in window) {
+  /* header: underline the section you're in */
+  var links = $$('.tb__nav a');
+  if ('IntersectionObserver' in window && links.length) {
     var io = new IntersectionObserver(function (es) {
-      es.forEach(function (e) { if (!e.isIntersecting) return; links.forEach(function (a) { a.classList.toggle('on', a.hash === '#' + e.target.id); }); });
+      es.forEach(function (e) { if (e.isIntersecting) links.forEach(function (a) { a.classList.toggle('on', a.hash === '#' + e.target.id); }); });
     }, { rootMargin: '-45% 0px -50% 0px' });
-    ['direct', 'work', 'peg', 'call'].forEach(function (id) { var el = document.getElementById(id); if (el) io.observe(el); });
+    ['about', 'work', 'plan', 'contact'].forEach(function (id) { var el = document.getElementById(id); if (el) io.observe(el); });
   }
 
-  /* ---------- Peg it out ---------- */
+  /* gallery: filter in place, open a photo large */
+  $$('.filters button').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var f = b.getAttribute('data-f');
+      $$('.filters button').forEach(function (x) { x.setAttribute('aria-pressed', String(x === b)); });
+      $$('.gallery .ph').forEach(function (li) { li.hidden = !(f === 'all' || li.getAttribute('data-stage') === f); });
+    });
+  });
+  var lb = $('[data-lb]');
+  if (lb && lb.showModal) {
+    $$('.ph__btn').forEach(function (b) {
+      b.addEventListener('click', function () {
+        $('[data-lb-img]', lb).src = b.getAttribute('data-full');
+        $('[data-lb-img]', lb).alt = b.getAttribute('data-cap');
+        $('[data-lb-cap]', lb).textContent = b.getAttribute('data-cap');
+        lb.showModal();
+      });
+    });
+    lb.addEventListener('click', function (e) { if (e.target === lb) lb.close(); });
+  }
+
+  /* ---------- Size it up: a dimensioned plan you drag ---------- */
   var svg = $('[data-plan-svg]');
   var setoutText = '';
   if (svg) {
     var NS = 'http://www.w3.org/2000/svg';
-    var S = 10, OX = 20, OY = 20, W = 60, H = 40, MIN = 3, EXT = 1.6;
-    var b = { x1: 10, y1: 10, x2: 34, y2: 25 };
+    var S = 10, OX = 20, OY = 20, W = 60, H = 40, MIN = 3;
+    var b = { x1: 12, y1: 11, x2: 42, y2: 29 };
     var g = $('[data-build]', svg);
     var form = $('[data-peg-form]');
     var inW = $('[data-w]'), inL = $('[data-l]');
@@ -37,45 +51,50 @@
     var fmt = function (v) { return (Math.round(v * 10) / 10).toString(); };
     var el = function (tag, attrs, parent) { var n = document.createElementNS(NS, tag); for (var k in attrs) n.setAttribute(k, attrs[k]); (parent || g).appendChild(n); return n; };
     var X = function (m) { return OX + m * S; }, Y = function (m) { return OY + m * S; };
+    var set = function (n, a) { for (var k in a) n.setAttribute(k, a[k]); };
 
-    // static drawing, updated in place
     var rect = el('rect', { class: 'bld' });
-    var strings = [0, 1, 2, 3].map(function () { return el('line', { class: 'strg' }); });
-    var tTop = el('text', { class: 'dimt', 'text-anchor': 'middle' });
-    var tSide = el('text', { class: 'dimt', 'text-anchor': 'middle' });
+    // horizontal dimension (above) and vertical dimension (right or left)
+    var hd = { e1: el('line', { class: 'ext' }), e2: el('line', { class: 'ext' }), l: el('line', { class: 'dimline' }), t1: el('line', { class: 'tick' }), t2: el('line', { class: 'tick' }), txt: el('text', { class: 'dimt', 'text-anchor': 'middle' }) };
+    var vd = { e1: el('line', { class: 'ext' }), e2: el('line', { class: 'ext' }), l: el('line', { class: 'dimline' }), t1: el('line', { class: 'tick' }), t2: el('line', { class: 'tick' }), txt: el('text', { class: 'dimt', 'text-anchor': 'middle' }) };
     var tArea = el('text', { class: 'dimt dimt--area', 'text-anchor': 'middle' });
     var pegs = {};
     ['nw', 'ne', 'se', 'sw'].forEach(function (k) {
-      var p = el('g', { class: 'pegh', tabindex: '0', role: 'button', 'aria-roledescription': 'draggable peg', 'data-k': k });
-      el('circle', { class: 'hit', r: 30 }, p); el('circle', { class: 'ring', r: 16 }, p); el('circle', { class: 'head', r: 9 }, p);
-      el('path', { class: 'cross', d: 'M-5 0H5M0 -5V5' }, p);
+      var p = el('g', { class: 'pegh', tabindex: '0', role: 'button', 'aria-roledescription': 'draggable corner', 'data-k': k });
+      el('circle', { class: 'hit', r: 30 }, p); el('circle', { class: 'ring', r: 15 }, p); el('circle', { class: 'head', r: 8 }, p); el('circle', { class: 'dot', r: 2 }, p);
       pegs[k] = p;
     });
     var corner = function (k) { return { x: k.indexOf('w') > -1 ? 'x1' : 'x2', y: k.indexOf('n') > -1 ? 'y1' : 'y2' }; };
-
     function storeys() { var c = $('input[name=storeys]:checked', form); return c ? +c.value : 1; }
     function kind() { var c = $('input[name=kind]:checked', form); return c ? c.value : ''; }
+
     function render(fromInput) {
       var w = b.x2 - b.x1, l = b.y2 - b.y1, a = w * l, st = storeys();
-      rect.setAttribute('x', X(b.x1)); rect.setAttribute('y', Y(b.y1)); rect.setAttribute('width', w * S); rect.setAttribute('height', l * S);
-      var L = [[b.x1 - EXT, b.y1, b.x2 + EXT, b.y1], [b.x1 - EXT, b.y2, b.x2 + EXT, b.y2], [b.x1, b.y1 - EXT, b.x1, b.y2 + EXT], [b.x2, b.y1 - EXT, b.x2, b.y2 + EXT]];
-      strings.forEach(function (s, i) { s.setAttribute('x1', X(L[i][0])); s.setAttribute('y1', Y(L[i][1])); s.setAttribute('x2', X(L[i][2])); s.setAttribute('y2', Y(L[i][3])); });
-      tTop.setAttribute('x', X((b.x1 + b.x2) / 2)); tTop.setAttribute('y', Y(b.y1) - 9); tTop.textContent = fmt(w) + ' m';
-      var sx = X(b.x2) + 30, sy = Y((b.y1 + b.y2) / 2);
-      if (sx > OX + W * S - 10) sx = X(b.x1) - 30;
-      tSide.setAttribute('x', sx); tSide.setAttribute('y', sy); tSide.setAttribute('transform', 'rotate(-90 ' + sx + ' ' + sy + ')'); tSide.textContent = fmt(l) + ' m';
-      tArea.setAttribute('x', X((b.x1 + b.x2) / 2)); tArea.setAttribute('y', Y((b.y1 + b.y2) / 2) + 7); tArea.textContent = w * l >= 30 ? fmt(a) + ' m²' : '';
+      set(rect, { x: X(b.x1), y: Y(b.y1), width: w * S, height: l * S });
+      // horizontal dimension string, 24px above the top edge
+      var hy = Y(b.y1) - 24;
+      set(hd.e1, { x1: X(b.x1), y1: Y(b.y1) - 6, x2: X(b.x1), y2: hy - 6 }); set(hd.e2, { x1: X(b.x2), y1: Y(b.y1) - 6, x2: X(b.x2), y2: hy - 6 });
+      set(hd.l, { x1: X(b.x1) - 8, y1: hy, x2: X(b.x2) + 8, y2: hy });
+      set(hd.t1, { x1: X(b.x1) - 5, y1: hy + 5, x2: X(b.x1) + 5, y2: hy - 5 }); set(hd.t2, { x1: X(b.x2) - 5, y1: hy + 5, x2: X(b.x2) + 5, y2: hy - 5 });
+      set(hd.txt, { x: X((b.x1 + b.x2) / 2), y: hy - 7 }); hd.txt.textContent = fmt(w) + ' m';
+      // vertical dimension string, right of the building (left if there's no room)
+      var right = X(b.x2) + 40 < OX + W * S, vx = right ? X(b.x2) + 24 : X(b.x1) - 24, off = right ? 6 : -6;
+      set(vd.e1, { x1: (right ? X(b.x2) : X(b.x1)) + off, y1: Y(b.y1), x2: vx + off, y2: Y(b.y1) }); set(vd.e2, { x1: (right ? X(b.x2) : X(b.x1)) + off, y1: Y(b.y2), x2: vx + off, y2: Y(b.y2) });
+      set(vd.l, { x1: vx, y1: Y(b.y1) - 8, x2: vx, y2: Y(b.y2) + 8 });
+      set(vd.t1, { x1: vx - 5, y1: Y(b.y1) + 5, x2: vx + 5, y2: Y(b.y1) - 5 }); set(vd.t2, { x1: vx - 5, y1: Y(b.y2) + 5, x2: vx + 5, y2: Y(b.y2) - 5 });
+      var ty = Y((b.y1 + b.y2) / 2), tx = vx + (right ? 15 : -8);
+      set(vd.txt, { x: tx, y: ty, transform: 'rotate(-90 ' + tx + ' ' + ty + ')' }); vd.txt.textContent = fmt(l) + ' m';
+      set(tArea, { x: X((b.x1 + b.x2) / 2), y: Y((b.y1 + b.y2) / 2) + 8 }); tArea.textContent = a >= 40 ? fmt(a) + ' m²' : '';
       Object.keys(pegs).forEach(function (k) {
         var c = corner(k), px = b[c.x], py = b[c.y];
         pegs[k].setAttribute('transform', 'translate(' + X(px) + ' ' + Y(py) + ')');
-        pegs[k].setAttribute('aria-label', names[k] + ' peg at ' + fmt(px) + ' m across, ' + fmt(py) + ' m down. Arrow keys move it half a metre, Shift for 5 m.');
+        pegs[k].setAttribute('aria-label', names[k] + ' corner at ' + fmt(px) + ' m across, ' + fmt(py) + ' m down. Arrow keys move it half a metre, Shift for 5 m.');
       });
       $('[data-area]').textContent = fmt(a);
-      var floor = st > 1 ? ' · ' + fmt(a * st) + ' m² over ' + st + ' storeys' : ' · 1 storey';
-      $('[data-dims]').textContent = fmt(w) + ' m × ' + fmt(l) + ' m footprint' + floor;
+      $('[data-dims]').textContent = fmt(w) + ' m × ' + fmt(l) + ' m footprint' + (st > 1 ? ' · ' + fmt(a * st) + ' m² over ' + st + ' storeys' : ' · single storey');
       $('[data-perim]').textContent = fmt(2 * (w + l));
       if (!fromInput) { inW.value = fmt(w); inL.value = fmt(l); }
-      setoutText = fmt(w) + ' m × ' + fmt(l) + ' m (' + fmt(a) + ' m² footprint), ' + st + (st > 1 ? ' storeys' : ' storey') + ', ' + kind();
+      setoutText = kind() + ', ' + fmt(w) + ' m × ' + fmt(l) + ' m (' + fmt(a) + ' m² footprint), ' + (st > 1 ? st + ' storeys' : 'single storey');
     }
     function moveCorner(k, mx, my) {
       var c = corner(k);
@@ -94,7 +113,7 @@
       var p = e.target.closest('.pegh'); if (!p) return;
       dragK = p.getAttribute('data-k'); p.classList.add('drag'); svg.setPointerCapture(e.pointerId); e.preventDefault();
     });
-    svg.addEventListener('pointermove', function (e) { if (!dragK) return; var m = toPlan(e); moveCorner(dragK, m.x, m.y); });
+    svg.addEventListener('pointermove', function (e) { if (dragK) { var m = toPlan(e); moveCorner(dragK, m.x, m.y); } });
     var end = function () { if (dragK) pegs[dragK].classList.remove('drag'); dragK = null; };
     svg.addEventListener('pointerup', end); svg.addEventListener('pointercancel', end);
     svg.addEventListener('keydown', function (e) {
@@ -114,18 +133,18 @@
     form.addEventListener('change', function (e) { if (e.target.name === 'kind' || e.target.name === 'storeys') render(); });
     form.addEventListener('submit', function (e) { e.preventDefault(); });
     $('[data-send]').addEventListener('click', function () {
-      var f = $('[data-setout]'); if (f) f.value = setoutText;
+      $('[data-setout]').value = setoutText; $('[data-tb-project]').textContent = setoutText;
       try { sessionStorage.setItem('rsb-setout', setoutText); } catch (err) {}
     });
     render();
-    // invitation: the far peg walks out once when the plan is first seen
+    // invitation: the far corner eases out once, the first time the plan is seen
     if (!reduce && 'IntersectionObserver' in window) {
       var seen = false;
       new IntersectionObserver(function (es, o) {
         if (!es[0].isIntersecting || seen) return; seen = true; o.disconnect();
-        var from = { x: b.x2, y: b.y2 }, to = { x: 40, y: 28 }, t0 = performance.now();
-        b.x2 = 20; b.y2 = 18; render();
-        (function step(t) { var k = Math.min(1, (t - t0) / 1100), q = 1 - Math.pow(1 - k, 3); if (!dragK) { b.x2 = snap(20 + (to.x - 20) * q); b.y2 = snap(18 + (to.y - 18) * q); render(); } if (k < 1) requestAnimationFrame(step); })(t0);
+        var t0 = performance.now(), fx = 24, fy = 20, tx = 42, ty = 29;
+        b.x2 = fx; b.y2 = fy; render();
+        (function step(t) { var k = Math.min(1, (t - t0) / 1200), q = 1 - Math.pow(1 - k, 3); if (!dragK) { b.x2 = snap(fx + (tx - fx) * q); b.y2 = snap(fy + (ty - fy) * q); render(); } if (k < 1) requestAnimationFrame(step); })(t0);
       }, { threshold: 0.5 }).observe(svg);
     }
   }
@@ -133,7 +152,7 @@
   /* ---------- the enquiry ---------- */
   var enq = $('[data-enquiry]');
   if (enq) {
-    try { var saved = sessionStorage.getItem('rsb-setout'); if (saved && !$('[data-setout]').value) $('[data-setout]').value = saved; } catch (err) {}
+    try { var saved = sessionStorage.getItem('rsb-setout'); if (saved) { $('[data-setout]').value = saved; $('[data-tb-project]').textContent = saved; } } catch (err) {}
     var err = $('[data-err]', enq);
     enq.addEventListener('submit', function (e) {
       e.preventDefault();
@@ -143,12 +162,12 @@
       var msg = !name ? 'Please add your name.' : (!phone && !email) ? 'Please add a phone number or an email so Ryan can reply.' : (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) ? 'That email address looks incomplete.' : '';
       err.textContent = msg;
       if (msg) { (!name ? enq.elements.name : enq.elements.phone).focus(); return; }
-      var data = { setout: f.get('setout'), job: f.get('job'), name: name, business: f.get('business'), phone: phone, email: email };
+      var data = { project: f.get('setout'), about: f.get('job'), name: name, business: f.get('business'), phone: phone, email: email };
       var cfg = window.RSB_ENQUIRY || {};
       var done = $('[data-done]', enq);
       var show = function (sent) {
         done.hidden = false;
-        done.innerHTML = '<h4>' + (sent ? 'Sent to Ryan.' : 'Demo: not sent.') + '</h4><p>' + (sent ? "Thanks. Ryan will be in touch." : 'This preview is not connected yet, so nothing was sent. To start now, call Ryan on <a href="tel:+61402944615">0402 944 615</a>.') + '</p>';
+        done.innerHTML = '<h4>' + (sent ? 'Sent to Ryan.' : 'Preview only: not sent.') + '</h4><p>' + (sent ? 'Thanks. Ryan will be in touch.' : 'This preview is not connected yet, so nothing was sent. Call Ryan on <a href="tel:+61402944615">0402 944 615</a>.') + '</p>';
         done.focus();
       };
       if (!cfg.endpoint) { show(false); return; }
